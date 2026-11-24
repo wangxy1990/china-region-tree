@@ -1,0 +1,10 @@
+out/_*.log
+out/_*.err
+out/_*.js
+out/_*.txt
+out/_screen.png
+out/_screen.jpg
+out/_edgetmp/
+deploy/
+.iga/
+__pycache__/

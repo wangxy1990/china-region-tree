@@ -1,0 +1,58 @@
+name: update-region-tree
+
+on:
+  schedule:
+    - cron: "0 20 * * 0"   # 每周一 20:00 UTC = 周二 04:00 北京时间
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 抓取民政部最新代码并重建
+        run: python tools/update.py
+
+      - name: 提交数据变化
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: 自动更新行政区划数据"
+          file_pattern: "data/regions.csv data/data-version.json out/china-region-tree.json"
+
+      - name: 组装站点
+        run: |
+          mkdir -p _site
+          cp out/index.html _site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

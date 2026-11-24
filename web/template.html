@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全国省市区行政区划结构树</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%233b74ff'/><text x='16' y='24' font-size='19' text-anchor='middle' fill='white' font-family='sans-serif'>中</text></svg>">
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#fff; --line:#e6e9f0; --ink:#111827; --muted:#6b7280; --soft:#9ca3af;
+    --blue:#2563eb; --teal:#0e9384; --violet:#7c3aed;
+    --provbg:#eef3ff; --citybg:#e7f6f4; --areabg:#f4ecff;
+    --headH:136px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:
+      radial-gradient(1200px 400px at 50% -260px, #e8efff 0%, rgba(232,239,255,0) 70%), var(--bg);
+    color:var(--ink);
+    font:14px/1.65 "PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  ::selection{background:#dbe4ff}
+
+  /* ---------- 头部 ---------- */
+  header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:saturate(1.4) blur(12px);
+    border-bottom:1px solid var(--line);padding:16px 26px 14px}
+  .wrap{max-width:1120px;margin:0 auto}
+  .title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .logo{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;color:#fff;
+    background:linear-gradient(135deg,#3b74ff,#7c3aed);box-shadow:0 4px 12px rgba(59,116,255,.35)}
+  h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.3px}
+  .src{font-size:12px;color:var(--muted);padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:#fff}
+  .pills{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:999px;
+    background:#fff;border:1px solid var(--line);color:var(--muted)}
+  .pill i{width:6px;height:6px;border-radius:50%;background:var(--soft)}
+  .pill b{color:var(--ink);font-weight:650}
+  .pill.prov i{background:var(--blue)} .pill.city i{background:var(--teal)} .pill.area i{background:var(--violet)}
+
+  .bar{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .search{position:relative;flex:1 1 340px;max-width:460px}
+  .search input{width:100%;padding:9px 12px 9px 34px;border:1px solid var(--line);border-radius:11px;
+    font-size:13.5px;color:var(--ink);outline:none;background:#fff;transition:box-shadow .18s,border-color .18s}
+  .search input::placeholder{color:#a8b0bd}
+  .search input:focus{border-color:#b9caff;box-shadow:0 0 0 4px rgba(37,99,235,.09)}
+  .search .ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#a8b0bd;font-size:13px}
+  .results{position:absolute;left:0;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 18px 40px rgba(17,24,39,.14);max-height:360px;overflow:auto;display:none;z-index:40}
+  .results.show{display:block}
+  .res{padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f4f6f9}
+  .res:last-child{border-bottom:0}
+  .res:hover{background:#f7f9ff}
+  .res .p{display:block;color:var(--soft);font-size:11.5px;margin-top:1px}
+  .res mark{background:#fff3bf;color:inherit;border-radius:3px;padding:0 1px}
+  .btn{padding:8px 13px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer;
+    font-size:12.5px;color:#374151;transition:.16s}
+  .btn:hover{border-color:#bfd0ff;color:var(--blue);box-shadow:0 2px 8px rgba(37,99,235,.08)}
+  .hint{font-size:12px;color:var(--soft)}
+
+  /* ---------- 主体 ---------- */
+  main{max-width:1120px;margin:0 auto;padding:18px 26px 48px}
+  .crumb{position:sticky;top:calc(var(--headH) + 10px);z-index:10;display:flex;align-items:center;gap:8px;
+    background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;
+    padding:8px 12px;margin-bottom:14px;min-height:44px;box-shadow:0 6px 18px rgba(17,24,39,.05);overflow:hidden}
+  .crumb .chip{font-size:12.5px;padding:2px 9px;border-radius:8px;background:#f3f5fa;color:#374151;white-space:nowrap}
+  .crumb .chip.last{background:#e8efff;color:var(--blue);font-weight:600}
+  .crumb .sep{color:var(--soft);font-size:11px}
+  .crumb .code{margin-left:4px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;color:var(--soft)}
+  .crumb .copy{margin-left:auto;font-size:12px;color:var(--blue);cursor:pointer;white-space:nowrap;padding:2px 6px;border-radius:6px}
+  .crumb .copy:hover{background:#eff4ff}
+  .crumb .tip{color:var(--soft);font-size:12.5px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px 14px;
+    box-shadow:0 1px 2px rgba(17,24,39,.04),0 10px 30px rgba(17,24,39,.035)}
+
+  .node > .row{display:flex;align-items:center;gap:9px;padding:5px 8px 5px 6px;border-radius:9px;cursor:pointer;
+    transition:background .12s}
+  .row:hover{background:#f6f8ff}
+  .row.sel{background:linear-gradient(90deg,#eff4ff,#fbfcff);box-shadow:inset 3px 0 0 var(--blue)}
+  .row.flash{animation:flash .9s ease}
+  @keyframes flash{0%{background:#fff1a8}100%{background:transparent}}
+
+  .tg{width:16px;height:16px;display:grid;place-items:center;color:#b3bac6;font-size:10px;
+    transition:transform .18s ease,color .18s}
+  .node.open > .row .tg{transform:rotate(90deg);color:var(--blue)}
+  .nm{font-size:13.5px;color:#1f2937}
+  .node.lv-province > .row .nm{font-weight:650;font-size:14.5px}
+  .node.lv-city > .row .nm{color:#26313f}
+  .node.lv-area > .row .nm{font-size:13px;color:#3f4a5a}
+  .card > .node.lv-province + .node.lv-province{border-top:1px solid #f4f6fa;margin-top:1px}
+  .card > .node.lv-province{padding-top:2px}
+  .cnt{font-size:11px;color:var(--soft);background:#f5f7fa;border-radius:6px;padding:0 5px;min-width:20px;text-align:center}
+  .code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;color:#b6bcc7;margin-left:2px}
+  .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:6px;font-weight:500}
+  .tag.province{background:var(--provbg);color:var(--blue)}
+  .tag.city{background:var(--citybg);color:var(--teal)}
+  .tag.area{background:var(--areabg);color:var(--violet)}
+
+  .kids{display:none;padding-left:26px;position:relative}
+  .node.open > .kids{display:block;animation:rise .18s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
+  .kids::before{content:"";position:absolute;left:11px;top:2px;bottom:2px;width:1px;background:#eef0f6}
+
+  footer{max-width:1120px;margin:0 auto;padding:0 26px 46px;color:var(--soft);font-size:12px;line-height:1.9}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="title">
+      <span class="logo">中</span>
+      <h1>全国省市区行政区划结构树</h1>
+      <span class="src" id="src"></span>
+    </div>
+    <div class="pills" id="pills"></div>
+    <div class="bar">
+      <div class="search">
+        <span class="ico">🔍</span>
+        <input id="q" type="text" placeholder="搜索名称或编码，如 江宁区 / 320115 / 南京" autocomplete="off">
+        <div class="results" id="results"></div>
+      </div>
+      <button class="btn" id="expandAll">展开全部</button>
+      <button class="btn" id="collapseAll">收起全部</button>
+      <span class="hint">点击名称或箭头即可展开／收起</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="crumb" id="crumb"><span class="tip">点击任意节点，这里显示从省到该节点的完整路径</span></div>
+  <div class="card" id="tree"></div>
+</main>
+
+<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
+
+<script>
+const DATA = __DATA__;
+const LEVEL_CN = { province: '省', city: '市', area: '区县' };
+
+/* ---------- 索引 ---------- */
+const byCode = new Map();
+let total = 0;
+function index(node, parent, depth) {
+  node._parent = parent;
+  node._depth = depth;
+  node._path = parent ? parent._path + '/' + node.name : node.name;
+  node._chain = parent ? parent._chain.concat(node.name) : [node.name];
+  byCode.set(node.code, node);
+  total++;
+  (node.children || []).forEach(c => index(c, node, depth + 1));
+}
+DATA.provinces.forEach(p => index(p, null, 1));
+
+/* ---------- 概览 ---------- */
+const counts = { province: 0, city: 0, area: 0 };
+byCode.forEach(n => counts[n.level] = (counts[n.level] || 0) + 1);
+const y = (DATA.source || '').match(/(\d{4})\s*年/);
+document.getElementById('src').textContent = y ? '民政部 ' + y[1] + ' 版' : '民政部代码';
+document.getElementById('srcFull').textContent = DATA.source || '民政部行政区划代码';
+document.getElementById('pills').innerHTML =
+  `<span class="pill prov"><i></i>省 <b>${counts.province}</b></span>
+   <span class="pill city"><i></i>市 <b>${counts.city}</b></span>
+   <span class="pill area"><i></i>区县 <b>${counts.area}</b></span>
+   <span class="pill"><i></i>合计 <b>${total}</b></span>
+   <span class="pill"><i></i>最大深度 <b>${Math.max(...[...byCode.values()].map(n => n._depth))}</b></span>`;
+document.getElementById('footTotal').textContent = total;
+
+/* ---------- 渲染 ---------- */
+const tree = document.getElementById('tree');
+const rowOf = new Map();
+
+function esc(s) {
+  return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function build(node) {
+  const el = document.createElement('div');
+  const kids = node.children || [];
+  el.className = 'node lv-' + node.level;
+  el.innerHTML =
+    `<div class="row">
+       <span class="tg">${kids.length ? '▶' : ''}</span>
+       <span class="nm">${esc(node.name)}</span>
+       <span class="tag ${node.level}">${LEVEL_CN[node.level] || node.level}</span>
+       ${kids.length ? `<span class="cnt">${kids.length}</span>` : ''}
+       <span class="code">${node.code}</span>
+     </div>
+     ${kids.length ? '<div class="kids"></div>' : ''}`;
+
+  const row = el.querySelector('.row');
+  rowOf.set(node.code, { el, row });
+  row.addEventListener('click', e => {
+    if (e.target.closest('.copy')) return;
+    select(node);
+    if (kids.length) toggle(node.code);
+  });
+  if (kids.length) {
+    const box = el.querySelector('.kids');
+    kids.forEach(c => box.appendChild(build(c)));
+  }
+  return el;
+}
+DATA.provinces.forEach(p => tree.appendChild(build(p)));
+
+/* ---------- 展开 / 收起 ---------- */
+function setOpen(code, open) {
+  const ref = rowOf.get(code);
+  if (!ref) return;
+  ref.el.classList.toggle('open', open);
+}
+function toggle(code) {
+  const ref = rowOf.get(code);
+  if (ref) ref.el.classList.toggle('open');
+}
+function expandAncestors(node) {
+  let p = node._parent;
+  while (p) { setOpen(p.code, true); p = p._parent; }
+}
+document.getElementById('expandAll').onclick = () => byCode.forEach((n, c) => setOpen(c, true));
+document.getElementById('collapseAll').onclick = () => byCode.forEach((n, c) => setOpen(c, false));
+
+/* ---------- 选中与面包屑 ---------- */
+let current = null;
+const crumb = document.getElementById('crumb');
+
+function select(node) {
+  if (current && rowOf.get(current.code)) rowOf.get(current.code).row.classList.remove('sel');
+  current = node;
+  rowOf.get(node.code).row.classList.add('sel');
+  crumb.innerHTML =
+    node._chain.map((n, i) =>
+      `<span class="chip ${i === node._chain.length - 1 ? 'last' : ''}">${esc(n)}</span>`
+    ).join('<span class="sep">›</span>') +
+    `<span class="code">${node.code} · ${LEVEL_CN[node.level] || node.level}</span>` +
+    `<span class="copy">复制路径</span>`;
+  crumb.querySelector('.copy').onclick = () => {
+    navigator.clipboard?.writeText(node.code + ' ' + node._path);
+    const el = crumb.querySelector('.copy');
+    el.textContent = '已复制';
+    setTimeout(() => el.textContent = '复制路径', 1200);
+  };
+}
+
+/* ---------- 搜索 ---------- */
+const q = document.getElementById('q');
+const results = document.getElementById('results');
+
+function mark(text, kw) {
+  const i = text.toLowerCase().indexOf(kw.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + kw.length)) + '</mark>' + esc(text.slice(i + kw.length));
+}
+
+q.addEventListener('input', () => {
+  const kw = q.value.trim();
+  if (!kw) { results.classList.remove('show'); results.innerHTML = ''; return; }
+  const hits = [];
+  byCode.forEach(n => {
+    if (n.name.includes(kw) || n.code.startsWith(kw) || n.code === kw) hits.push(n);
+  });
+  hits.sort((a, b) => a._depth - b._depth || a.code.localeCompare(b.code));
+  results.innerHTML = hits.length
+    ? hits.slice(0, 30).map(n =>
+      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}
+         <span class="tag ${n.level}">${LEVEL_CN[n.level] || n.level}</span>
+         <span class="code" style="margin-left:6px">${n.code}</span>
+         <span class="p">${esc(n._path)}</span></div>`).join('')
+    : '<div class="res">没有匹配的行政区划</div>';
+  results.classList.add('show');
+  results.querySelectorAll('.res[data-code]').forEach(el => {
+    el.onclick = () => {
+      const n = byCode.get(el.dataset.code);
+      expandAncestors(n);
+      select(n);
+      if (n.children && n.children.length) setOpen(n.code, true);
+      results.classList.remove('show');
+      q.value = n.name;
+      const row = rowOf.get(n.code).row;
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      row.classList.add('flash');
+      setTimeout(() => row.classList.remove('flash'), 900);
+    };
+  });
+});
+q.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { q.value = ''; results.classList.remove('show'); }
+  if (e.key === 'Enter') results.querySelector('.res[data-code]')?.click();
+});
+document.addEventListener('click', e => { if (!e.target.closest('.search')) results.classList.remove('show'); });
+
+/* ---------- 面包屑吸顶高度 ---------- */
+function syncHeadH() {
+  document.documentElement.style.setProperty('--headH', document.querySelector('header').offsetHeight + 'px');
+}
+syncHeadH();
+addEventListener('resize', syncHeadH);
+</script>
+</body>
+</html>
+
+
