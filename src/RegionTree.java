@@ -61,6 +61,8 @@ public class RegionTree {
         final String code;
         final String name;
         final Level level;
+        String plate;      // 车牌发牌代号，如 苏A
+        String plateAlt;   // 增补号段，如 苏E 城市的 苏U
         final List<Node> children = new ArrayList<>();
         Node parent;
 
@@ -80,6 +82,7 @@ public class RegionTree {
 
     public static void main(String[] args) throws IOException {
         String csvPath = "data/regions.csv";
+        String platesPath = "data/plates.csv";
         String jsonOut = "out/china-region-tree.json";
         String lookupKey = null;
         boolean printAll = false;
@@ -87,6 +90,7 @@ public class RegionTree {
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--csv" -> csvPath = args[++i];
+                case "--plates" -> platesPath = args[++i];
                 case "--json" -> jsonOut = args[++i];
                 case "--lookup" -> lookupKey = args[++i];
                 case "--tree", "--all" -> printAll = true;
@@ -94,6 +98,7 @@ public class RegionTree {
                     System.out.println("""
                             全国省市区结构树
                               --csv <path>      扁平数据文件，默认 data/regions.csv
+                              --plates <path>   车牌映射，默认 data/plates.csv（不存在则跳过）
                               --json <path>     输出的嵌套 JSON，默认 out/china-region-tree.json
                               --tree            打印完整树（不加则只打印第一个省）
                               --lookup <key>    按行政区划编码或名称查询全路径
@@ -122,6 +127,12 @@ public class RegionTree {
         List<Node> forest = new ArrayList<>();
         for (Region root : roots) {
             forest.add(buildTree(root, childrenOf));
+        }
+
+        // 3.5 挂车牌代号（可选，来自 data/plates.csv）
+        Map<String, String[]> plates = loadPlates(Paths.get(platesPath));
+        for (Node root : forest) {
+            attachPlates(root, plates);
         }
 
         // 4. 统计
@@ -235,7 +246,9 @@ public class RegionTree {
     /** 递归打印缩进树。 */
     private static void printTree(Node node, String prefix, boolean isTail, int depth) {
         String connector = depth == 1 ? "" : (isTail ? "└─ " : "├─ ");
-        System.out.printf("%s%s%s (%s, %s)%n", prefix, connector, node.name, node.code, node.level.key);
+        String plate = node.plate == null ? "" : " [" + node.plate
+                + (node.plateAlt == null ? "" : "/" + node.plateAlt) + "]";
+        System.out.printf("%s%s%s%s (%s, %s)%n", prefix, connector, node.name, plate, node.code, node.level.key);
         String childPrefix = depth == 1 ? "" : prefix + (isTail ? "   " : "│  ");
         for (int i = 0; i < node.children.size(); i++) {
             printTree(node.children.get(i), childPrefix, i == node.children.size() - 1, depth + 1);
@@ -247,6 +260,12 @@ public class RegionTree {
         sb.append(indent).append("{\"code\": \"").append(escape(node.code))
                 .append("\", \"name\": \"").append(escape(node.name))
                 .append("\", \"level\": \"").append(node.level.key).append("\"");
+        if (node.plate != null) {
+            sb.append(", \"plate\": \"").append(escape(node.plate)).append("\"");
+        }
+        if (node.plateAlt != null) {
+            sb.append(", \"plateAlt\": \"").append(escape(node.plateAlt)).append("\"");
+        }
         if (node.children.isEmpty()) {
             sb.append("}");
         } else {
@@ -257,6 +276,41 @@ public class RegionTree {
             sb.append(indent).append("]}");
         }
         sb.append(last ? "\n" : ",\n");
+    }
+
+    /** 读取车牌映射 code,name,plate,alt（文件不存在时返回空表）。 */
+    private static Map<String, String[]> loadPlates(Path path) throws IOException {
+        Map<String, String[]> map = new LinkedHashMap<>();
+        if (!Files.exists(path)) {
+            return map;
+        }
+        for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {            if (line.isBlank() || line.startsWith("code,")) {
+                continue;
+            }
+            List<String> f = splitCsv(line);
+            if (f.size() < 3) {
+                continue;
+            }
+            String code = f.get(0).replace("\uFEFF", "").trim();
+            String plate = f.get(2).trim();
+            String alt = f.size() > 3 ? f.get(3).trim() : "";
+            if (!code.isEmpty() && !plate.isEmpty()) {
+                map.put(code, new String[]{plate, alt.isEmpty() ? null : alt});
+            }
+        }
+        return map;
+    }
+
+    /** 递归把车牌代号挂到对应节点。 */
+    private static void attachPlates(Node node, Map<String, String[]> plates) {
+        String[] p = plates.get(node.code);
+        if (p != null) {
+            node.plate = p[0];
+            node.plateAlt = p[1];
+        }
+        for (Node child : node.children) {
+            attachPlates(child, plates);
+        }
     }
 
     private static String escape(String s) {
@@ -337,4 +391,5 @@ public class RegionTree {
         return fields;
     }
 }
+
 

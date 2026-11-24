@@ -22,8 +22,17 @@ DECODER = """const DATA = await (async () => {
 
 
 def compact(node):
+    """[code, name, plate?, children?]；plate 形如 "苏E" 或 "苏E/苏U"，无车牌时为空串占位。"""
+    plate = node.get("plate") or ""
+    if node.get("plateAlt"):
+        plate += "/" + node["plateAlt"]
     kids = node.get("children")
-    return [node["code"], node["name"], [compact(c) for c in kids]] if kids else [node["code"], node["name"]]
+    item = [node["code"], node["name"]]
+    if plate or kids:
+        item.append(plate)
+    if kids:
+        item.append([compact(c) for c in kids])
+    return item
 
 
 def main(json_path, out_path):
@@ -54,7 +63,14 @@ def main(json_path, out_path):
                         "  const level = depth === 1 || code.endsWith('0000') ? 'province'\n"
                         "    : code.endsWith('00') ? 'city' : 'area';\n"
                         "  const node = { code, name: n[1], level };\n"
-                        "  if (n[2]) node.children = n[2].map(c => revive(c, depth + 1));\n"
+                        "  const plate = typeof n[2] === 'string' ? n[2] : '';\n"
+                        "  if (plate) {\n"
+                        "    const parts = plate.split('/');\n"
+                        "    node.plate = parts[0];\n"
+                        "    if (parts[1]) node.plateAlt = parts[1];\n"
+                        "  }\n"
+                        "  const kids = Array.isArray(n[2]) ? n[2] : n[3];\n"
+                        "  if (kids) node.children = kids.map(c => revive(c, depth + 1));\n"
                         "  return node;\n"
                         "}")
     html = html.replace("</script>\n</body>", "</script>\n</body>")

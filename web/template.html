@@ -90,6 +90,13 @@
   .card > .node.lv-province + .node.lv-province{border-top:1px solid #f4f6fa;margin-top:1px}
   .card > .node.lv-province{padding-top:2px}
   .cnt{font-size:11px;color:var(--soft);background:#f5f7fa;border-radius:6px;padding:0 5px;min-width:20px;text-align:center}
+  /* 车牌发牌代号：仿蓝牌样式 */
+  .plate{font-family:ui-monospace,SFMono-Regular,Consolas,"Microsoft YaHei",sans-serif;font-size:11px;font-weight:700;
+    letter-spacing:.6px;color:#fff;background:linear-gradient(180deg,#3672e0,#1d51c4);border-radius:5px;
+    padding:0 6px;line-height:17px;box-shadow:0 1px 2px rgba(29,81,196,.35),inset 0 0 0 1px rgba(255,255,255,.16);
+    white-space:nowrap;flex:none}
+  .plate.alt{color:#1d51c4;background:linear-gradient(180deg,#f4f7ff,#e7eeff);box-shadow:inset 0 0 0 1px #c6d6fb;font-weight:600}
+  .plate.prov{background:linear-gradient(180deg,#f59f19,#e07f08);box-shadow:0 1px 2px rgba(224,127,8,.3),inset 0 0 0 1px rgba(255,255,255,.2)}
   .code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;color:#b6bcc7;margin-left:2px}
   .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:6px;font-weight:500}
   .tag.province{background:var(--provbg);color:var(--blue)}
@@ -116,7 +123,7 @@
     <div class="bar">
       <div class="search">
         <span class="ico">🔍</span>
-        <input id="q" type="text" placeholder="搜索名称或编码，如 江宁区 / 320115 / 南京" autocomplete="off">
+        <input id="q" type="text" placeholder="搜索名称 / 编码 / 车牌，如 江宁区 / 320115 / 苏A" autocomplete="off">
         <div class="results" id="results"></div>
       </div>
       <button class="btn" id="expandAll">展开全部</button>
@@ -131,7 +138,7 @@
   <div class="card" id="tree"></div>
 </main>
 
-<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
+<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
 
 <script>
 const DATA = __DATA__;
@@ -162,7 +169,7 @@ document.getElementById('pills').innerHTML =
    <span class="pill city"><i></i>市 <b>${counts.city}</b></span>
    <span class="pill area"><i></i>区县 <b>${counts.area}</b></span>
    <span class="pill"><i></i>合计 <b>${total}</b></span>
-   <span class="pill"><i></i>最大深度 <b>${Math.max(...[...byCode.values()].map(n => n._depth))}</b></span>`;
+   <span class="pill"><i></i>车牌覆盖 <b>${[...byCode.values()].filter(n => n.plate && n.level !== 'province').length}</b> 处</span>`;
 document.getElementById('footTotal').textContent = total;
 
 /* ---------- 渲染 ---------- */
@@ -173,6 +180,13 @@ function esc(s) {
   return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+function plateHtml(node) {
+  if (!node.plate) return '';
+  const cls = node.level === 'province' ? 'plate prov' : 'plate';
+  const alt = node.plateAlt ? ` <span class="plate alt" title="增补号段">${esc(node.plateAlt)}</span>` : '';
+  return ` <span class="${cls}" title="${esc(node.name)} 发牌代号">${esc(node.plate)}</span>${alt}`;
+}
+
 function build(node) {
   const el = document.createElement('div');
   const kids = node.children || [];
@@ -180,7 +194,7 @@ function build(node) {
   el.innerHTML =
     `<div class="row">
        <span class="tg">${kids.length ? '▶' : ''}</span>
-       <span class="nm">${esc(node.name)}</span>
+       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}
        <span class="tag ${node.level}">${LEVEL_CN[node.level] || node.level}</span>
        ${kids.length ? `<span class="cnt">${kids.length}</span>` : ''}
        <span class="code">${node.code}</span>
@@ -231,10 +245,12 @@ function select(node) {
     node._chain.map((n, i) =>
       `<span class="chip ${i === node._chain.length - 1 ? 'last' : ''}">${esc(n)}</span>`
     ).join('<span class="sep">›</span>') +
+    plateHtml(node) +
     `<span class="code">${node.code} · ${LEVEL_CN[node.level] || node.level}</span>` +
     `<span class="copy">复制路径</span>`;
   crumb.querySelector('.copy').onclick = () => {
-    navigator.clipboard?.writeText(node.code + ' ' + node._path);
+    const plate = node.plate ? node.plate + (node.plateAlt ? '/' + node.plateAlt : '') : '';
+    navigator.clipboard?.writeText(node.code + ' ' + node._path + (plate ? ' ' + plate : ''));
     const el = crumb.querySelector('.copy');
     el.textContent = '已复制';
     setTimeout(() => el.textContent = '复制路径', 1200);
@@ -254,14 +270,17 @@ function mark(text, kw) {
 q.addEventListener('input', () => {
   const kw = q.value.trim();
   if (!kw) { results.classList.remove('show'); results.innerHTML = ''; return; }
+  const kwU = kw.toUpperCase();
   const hits = [];
   byCode.forEach(n => {
-    if (n.name.includes(kw) || n.code.startsWith(kw) || n.code === kw) hits.push(n);
+    if (n.name.includes(kw) || n.code.startsWith(kw) ||
+        (n.plate && (n.plate === kwU || n.plate.startsWith(kwU) || kwU.startsWith(n.plate))) ||
+        (n.plateAlt && n.plateAlt === kwU)) hits.push(n);
   });
   hits.sort((a, b) => a._depth - b._depth || a.code.localeCompare(b.code));
   results.innerHTML = hits.length
     ? hits.slice(0, 30).map(n =>
-      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}
+      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}${plateHtml(n)}
          <span class="tag ${n.level}">${LEVEL_CN[n.level] || n.level}</span>
          <span class="code" style="margin-left:6px">${n.code}</span>
          <span class="p">${esc(n._path)}</span></div>`).join('')
@@ -297,5 +316,6 @@ addEventListener('resize', syncHeadH);
 </script>
 </body>
 </html>
+
 
 
