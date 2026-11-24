@@ -5,6 +5,8 @@ out/_*.txt
 out/_screen.png
 out/_screen.jpg
 out/_edgetmp/
+out/.devcode
+.ssh/
 deploy/
 .iga/
 __pycache__/
