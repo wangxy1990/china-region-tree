@@ -13,6 +13,8 @@
 | area 区县级 | 2846 | 市辖区、县级市、县、自治县、旗等 |
 | 合计 | 3213 | 最大深度 3 |
 
+人口数据覆盖 331 个地级节点（另含 33 个省级节点），详见「常住人口」一节。
+
 数据源为**民政部《2024年中华人民共和国县以上行政区划代码》**（`mca.gov.cn`，2025 年发布的最新年度代码表），已包含 2024 年 11 月新公布的三沙市西沙区（460302）、南沙区（460303）等变更。
 
 ## 目录结构
@@ -25,10 +27,12 @@ china-region-tree/
 ├── data/pca-code-2023.json         # 备用数据的原始省市区嵌套 JSON
 ├── data/HK-MO-TW.json              # 港澳台区县原始数据
 ├── data/plates.csv                 # 车牌发牌代号：code,name,plate,alt（357 条）
+├── data/population.csv             # 常住人口：code,name,pop,pop_year,source（364 条）
 ├── data/data-version.json          # 当前数据版本（年份、来源 URL、生成时间）
 ├── tools/fetch_mca.py              # 抓取并解析民政部代码页面 → CSV
 ├── tools/flatten_pca.py            # 统计用区划代码嵌套 JSON → 扁平 CSV
 ├── tools/build_plates.py           # 各省字母表 → 车牌映射 CSV（含旧地名别名、前缀兜底）
+├── tools/build_population.py       # 抓取各市常住人口（红黑人口库 + 公报兜底）→ CSV
 ├── tools/build_html.py             # 把 JSON 内联进模板，生成单文件浏览页面
 ├── tools/build_cloud.py            # 生成压缩内联的云托管版页面
 ├── tools/update.py                 # 探测最新年份 → 抓取 → 重建 CSV / JSON / 页面
@@ -60,6 +64,24 @@ python tools\build_plates.py     # 重新生成 data\plates.csv
 ```
 
 目前唯一没有车牌的是三沙市（发牌归属待确认），省级节点除直辖市外不显示车牌。
+
+## 常住人口
+
+市名右侧的灰色小标签是该市**常住人口**（数据年份写在悬停提示里，鼠标停留可见），省、直辖市与省直辖县级市同位置也会显示。顶部统计胶囊里的「人口覆盖 N 个市」即已取到人口的地级节点数量（当前 331/333）。
+
+数据由 `tools/build_population.py` 抓取到 `data/population.csv`（字段 `code,name,pop,pop_year,source`）：
+
+- 主要来源：红黑人口库（hongheiku.com）各市页面头部的「XXXX 年初常住人口」，随每年统计公报逐年更新，因此每周任务重跑即可跟进，无需人工维护；
+- 省级页面的「辖区」下拉框用于发现各市页面，站点缺页的省份（山东）用其七普公报表格兜底，河南公报为图片表，采用公报原值（2020 年七普）；少数省份站点只给出七普值，其 `pop_year` 即为 2020；
+- 台湾省暂无可用机器可读数据，因此没有人口标签；山西太原、阳泉两市站点缺页，暂缺（可后续补公报值）。
+
+```powershell
+python tools\build_population.py            # 联网抓取并重写 data\population.csv
+python tools\build_population.py --offline  # 只用 data\_cache_hhk 缓存
+python tools\build_population.py --refresh  # 忽略缓存全量重抓
+```
+
+Java 侧 `loadPopulation` + `attachPopulation` 递归回填，JSON 输出 `pop`（人）与 `popYear`；`--pop` 可指定其它人口文件，文件缺失时自动跳过。页面按「≥100 万取整、其余保留两位」渲染成「964 万人 / 3.26 万人」。
 
 ## 运行
 
@@ -119,7 +141,7 @@ private static Node buildTree(Region record, Map<String, List<Region>> childrenO
     {
       "code": "320000", "name": "江苏省", "level": "province",
       "children": [
-        { "code": "320100", "name": "南京市", "level": "city", "plate": "苏A",
+        { "code": "320100", "name": "南京市", "level": "city", "plate": "苏A", "pop": 9638500, "popYear": 2026,
           "children": [
             { "code": "320115", "name": "江宁区", "level": "area" }
           ]

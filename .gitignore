@@ -6,6 +6,9 @@ out/_screen.png
 out/_screen.jpg
 out/_edgetmp/
 out/.devcode
+data/_cache_hhk/
+data/_city_urls.txt
+tools/_*.py
 .ssh/
 deploy/
 .iga/

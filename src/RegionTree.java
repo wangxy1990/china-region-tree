@@ -63,6 +63,8 @@ public class RegionTree {
         final Level level;
         String plate;      // 车牌发牌代号，如 苏A
         String plateAlt;   // 增补号段，如 苏E 城市的 苏U
+        Long pop;          // 常住人口（人），来自 data/population.csv
+        Integer popYear;   // 人口数据所属年份
         final List<Node> children = new ArrayList<>();
         Node parent;
 
@@ -83,6 +85,7 @@ public class RegionTree {
     public static void main(String[] args) throws IOException {
         String csvPath = "data/regions.csv";
         String platesPath = "data/plates.csv";
+        String popPath = "data/population.csv";
         String jsonOut = "out/china-region-tree.json";
         String lookupKey = null;
         boolean printAll = false;
@@ -91,6 +94,7 @@ public class RegionTree {
             switch (args[i]) {
                 case "--csv" -> csvPath = args[++i];
                 case "--plates" -> platesPath = args[++i];
+                case "--pop" -> popPath = args[++i];
                 case "--json" -> jsonOut = args[++i];
                 case "--lookup" -> lookupKey = args[++i];
                 case "--tree", "--all" -> printAll = true;
@@ -99,6 +103,7 @@ public class RegionTree {
                             全国省市区结构树
                               --csv <path>      扁平数据文件，默认 data/regions.csv
                               --plates <path>   车牌映射，默认 data/plates.csv（不存在则跳过）
+                              --pop <path>      常住人口，默认 data/population.csv（不存在则跳过）
                               --json <path>     输出的嵌套 JSON，默认 out/china-region-tree.json
                               --tree            打印完整树（不加则只打印第一个省）
                               --lookup <key>    按行政区划编码或名称查询全路径
@@ -133,6 +138,12 @@ public class RegionTree {
         Map<String, String[]> plates = loadPlates(Paths.get(platesPath));
         for (Node root : forest) {
             attachPlates(root, plates);
+        }
+
+        // 3.6 挂常住人口（可选，来自 data/population.csv）
+        Map<String, Object[]> pops = loadPopulation(Paths.get(popPath));
+        for (Node root : forest) {
+            attachPopulation(root, pops);
         }
 
         // 4. 统计
@@ -248,7 +259,9 @@ public class RegionTree {
         String connector = depth == 1 ? "" : (isTail ? "└─ " : "├─ ");
         String plate = node.plate == null ? "" : " [" + node.plate
                 + (node.plateAlt == null ? "" : "/" + node.plateAlt) + "]";
-        System.out.printf("%s%s%s%s (%s, %s)%n", prefix, connector, node.name, plate, node.code, node.level.key);
+        String pop = node.pop == null ? "" : " 常住 " + formatPop(node.pop)
+                + (node.popYear == null ? "" : "(" + node.popYear + ")");
+        System.out.printf("%s%s%s%s%s (%s, %s)%n", prefix, connector, node.name, plate, pop, node.code, node.level.key);
         String childPrefix = depth == 1 ? "" : prefix + (isTail ? "   " : "│  ");
         for (int i = 0; i < node.children.size(); i++) {
             printTree(node.children.get(i), childPrefix, i == node.children.size() - 1, depth + 1);
@@ -265,6 +278,12 @@ public class RegionTree {
         }
         if (node.plateAlt != null) {
             sb.append(", \"plateAlt\": \"").append(escape(node.plateAlt)).append("\"");
+        }
+        if (node.pop != null) {
+            sb.append(", \"pop\": ").append(node.pop);
+            if (node.popYear != null) {
+                sb.append(", \"popYear\": ").append(node.popYear);
+            }
         }
         if (node.children.isEmpty()) {
             sb.append("}");
@@ -311,6 +330,58 @@ public class RegionTree {
         for (Node child : node.children) {
             attachPlates(child, plates);
         }
+    }
+
+    /** 读取常住人口表 code,name,pop,pop_year,source（文件不存在时返回空表）。 */
+    private static Map<String, Object[]> loadPopulation(Path path) throws IOException {
+        Map<String, Object[]> map = new LinkedHashMap<>();
+        if (!Files.exists(path)) {
+            return map;
+        }
+        for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+            if (line.isBlank() || line.startsWith("code,")) {
+                continue;
+            }
+            List<String> f = splitCsv(line);
+            if (f.size() < 3) {
+                continue;
+            }
+            String code = f.get(0).replace("\uFEFF", "").trim();
+            String pop = f.get(2).trim();
+            String year = f.size() > 3 ? f.get(3).trim() : "";
+            if (code.isEmpty() || pop.isEmpty()) {
+                continue;
+            }
+            try {
+                map.put(code, new Object[]{Long.parseLong(pop),
+                        year.isEmpty() ? null : Integer.valueOf(year)});
+            } catch (NumberFormatException ignored) {
+                // 跳过异常行
+            }
+        }
+        return map;
+    }
+
+    /** 递归把常住人口挂到对应节点。 */
+    @SuppressWarnings("unchecked")
+    private static void attachPopulation(Node node, Map<String, Object[]> pops) {
+        Object[] p = pops.get(node.code);
+        if (p != null) {
+            node.pop = (Long) p[0];
+            node.popYear = (Integer) p[1];
+        }
+        for (Node child : node.children) {
+            attachPopulation(child, pops);
+        }
+    }
+
+    /** 人口格式化为“xx 万”便于阅读。 */
+    private static String formatPop(Long pop) {
+        if (pop == null) {
+            return "";
+        }
+        double wan = pop / 10000.0;
+        return wan >= 100 ? String.format("%.0f 万", wan) : String.format("%.2f 万", wan);
     }
 
     private static String escape(String s) {

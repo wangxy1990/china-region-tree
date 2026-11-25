@@ -22,14 +22,13 @@ DECODER = """const DATA = await (async () => {
 
 
 def compact(node):
-    """[code, name, plate?, children?]；plate 形如 "苏E" 或 "苏E/苏U"，无车牌时为空串占位。"""
+    """[code, name, plate, pop, popYear, children?]
+    plate 形如 "苏E" 或 "苏E/苏U"，无车牌为空串；pop 为常住人口（人），无数据为 0。"""
     plate = node.get("plate") or ""
     if node.get("plateAlt"):
         plate += "/" + node["plateAlt"]
     kids = node.get("children")
-    item = [node["code"], node["name"]]
-    if plate or kids:
-        item.append(plate)
+    item = [node["code"], node["name"], plate, node.get("pop") or 0, node.get("popYear") or 0]
     if kids:
         item.append([compact(c) for c in kids])
     return item
@@ -69,7 +68,8 @@ def main(json_path, out_path):
                         "    node.plate = parts[0];\n"
                         "    if (parts[1]) node.plateAlt = parts[1];\n"
                         "  }\n"
-                        "  const kids = Array.isArray(n[2]) ? n[2] : n[3];\n"
+                        "  if (n[3]) { node.pop = n[3]; if (n[4]) node.popYear = n[4]; }\n"
+                        "  const kids = Array.isArray(n[5]) ? n[5] : null;\n"
                         "  if (kids) node.children = kids.map(c => revive(c, depth + 1));\n"
                         "  return node;\n"
                         "}")

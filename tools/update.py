@@ -117,7 +117,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="只检测不写文件")
     args = ap.parse_args()
 
-    print("[1/4] 探测民政部最新年度代码")
+    print("[1/5] 探测民政部最新年度代码")
     if args.year:
         year, doc = args.year, fetch(url_for(args.year))
         recs = parse(doc)
@@ -133,7 +133,7 @@ def main():
     counts = {}
     for r in rows:
         counts[r[2]] = counts.get(r[2], 0) + 1
-    print(f"[2/4] 解析完成：共 {len(rows)} 条 {counts}（{year} 年数据）")
+    print(f"[2/5] 解析完成：共 {len(rows)} 条 {counts}（{year} 年数据）")
 
     csv_path = os.path.join(ROOT, "data", "regions.csv")
     old_total = None
@@ -151,14 +151,22 @@ def main():
         json.dump({"year": year, "records": len(rows), "updatedAt": time.strftime("%Y-%m-%d %H:%M:%S")},
                   f, ensure_ascii=False, indent=2)
 
-    print("[3/4] 运行 Java 生成 JSON / 文本树")
+    print("[3/5] 更新各市常住人口（红黑人口库 + 公报兜底）")
+    if run([sys.executable, "tools/build_population.py"]) != 0:
+        print("  人口更新失败，沿用现有 data/population.csv（不阻断后续步骤）")
+
+    print("[4/5] 运行 Java 生成 JSON / 文本树")
     if run(["java", "-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "src/RegionTree.java"]) != 0:
         print("Java 运行失败，更新中止")
         return 1
 
-    print("[4/4] 生成单文件页面")
+    print("[5/5] 生成单文件页面（完整版 + 云版）")
     rc = run([sys.executable, "tools/build_html.py", "web/template.html",
               "out/china-region-tree.json", "out/index.html"])
+    if rc != 0:
+        return 1
+    rc = run([sys.executable, "tools/build_cloud.py",
+              "out/china-region-tree.json", "out/cloud.html"])
     if rc != 0:
         return 1
     print(f"更新完成：{year} 年版数据 {len(rows)} 条")

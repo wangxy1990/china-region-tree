@@ -98,6 +98,9 @@
   .plate.alt{color:#1d51c4;background:linear-gradient(180deg,#f4f7ff,#e7eeff);box-shadow:inset 0 0 0 1px #c6d6fb;font-weight:600}
   .plate.prov{background:linear-gradient(180deg,#f59f19,#e07f08);box-shadow:0 1px 2px rgba(224,127,8,.3),inset 0 0 0 1px rgba(255,255,255,.2)}
   .code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;color:#b6bcc7;margin-left:2px}
+  /* 常住人口 */
+  .pop{font-size:11.5px;color:#6b7686;background:#f7f9fc;border-radius:6px;padding:0 6px;line-height:17px;
+    white-space:nowrap;flex:none;box-shadow:inset 0 0 0 1px #eef1f7}
   .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:6px;font-weight:500}
   .tag.province{background:var(--provbg);color:var(--blue)}
   .tag.city{background:var(--citybg);color:var(--teal)}
@@ -138,7 +141,7 @@
   <div class="card" id="tree"></div>
 </main>
 
-<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
+<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧为常住人口（悬停标签可见数据年份，未标注年份者按最新统计公报，个别为七普口径）· 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
 
 <script>
 const DATA = __DATA__;
@@ -169,7 +172,8 @@ document.getElementById('pills').innerHTML =
    <span class="pill city"><i></i>市 <b>${counts.city}</b></span>
    <span class="pill area"><i></i>区县 <b>${counts.area}</b></span>
    <span class="pill"><i></i>合计 <b>${total}</b></span>
-   <span class="pill"><i></i>车牌覆盖 <b>${[...byCode.values()].filter(n => n.plate && n.level !== 'province').length}</b> 处</span>`;
+   <span class="pill"><i></i>车牌覆盖 <b>${[...byCode.values()].filter(n => n.plate && n.level !== 'province').length}</b> 处</span>
+   <span class="pill"><i></i>人口覆盖 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'city').length}</b> 个市</span>`;
 document.getElementById('footTotal').textContent = total;
 
 /* ---------- 渲染 ---------- */
@@ -187,6 +191,15 @@ function plateHtml(node) {
   return ` <span class="${cls}" title="${esc(node.name)} 发牌代号">${esc(node.plate)}</span>${alt}`;
 }
 
+function popHtml(node) {
+  if (!node.pop) return '';
+  const wan = node.pop / 10000;
+  const txt = wan >= 100 ? Math.round(wan) + ' 万' : wan.toFixed(2) + ' 万';
+  const year = node.popYear;
+  const tip = (year ? year + ' ' : '') + '常住人口';
+  return ` <span class="pop" title="${esc(tip)}">${txt}人</span>`;
+}
+
 function build(node) {
   const el = document.createElement('div');
   const kids = node.children || [];
@@ -194,7 +207,7 @@ function build(node) {
   el.innerHTML =
     `<div class="row">
        <span class="tg">${kids.length ? '▶' : ''}</span>
-       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}
+       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}${popHtml(node)}
        <span class="tag ${node.level}">${LEVEL_CN[node.level] || node.level}</span>
        ${kids.length ? `<span class="cnt">${kids.length}</span>` : ''}
        <span class="code">${node.code}</span>
@@ -247,6 +260,7 @@ function select(node) {
     ).join('<span class="sep">›</span>') +
     plateHtml(node) +
     `<span class="code">${node.code} · ${LEVEL_CN[node.level] || node.level}</span>` +
+    (node.pop ? `<span class="code">${node.popYear ? node.popYear + ' 年 ' : ''}常住 ${(node.pop / 10000) >= 100 ? Math.round(node.pop / 10000) + ' 万' : (node.pop / 10000).toFixed(2) + ' 万'}人</span>` : '') +
     `<span class="copy">复制路径</span>`;
   crumb.querySelector('.copy').onclick = () => {
     const plate = node.plate ? node.plate + (node.plateAlt ? '/' + node.plateAlt : '') : '';
@@ -280,7 +294,7 @@ q.addEventListener('input', () => {
   hits.sort((a, b) => a._depth - b._depth || a.code.localeCompare(b.code));
   results.innerHTML = hits.length
     ? hits.slice(0, 30).map(n =>
-      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}${plateHtml(n)}
+      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}${plateHtml(n)}${popHtml(n)}
          <span class="tag ${n.level}">${LEVEL_CN[n.level] || n.level}</span>
          <span class="code" style="margin-left:6px">${n.code}</span>
          <span class="p">${esc(n._path)}</span></div>`).join('')
