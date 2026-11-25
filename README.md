@@ -2,6 +2,8 @@
 
 纯 JDK、零第三方依赖的 Java 程序，读取扁平行政区划数据，**递归构建**「省 → 市 → 区县」结构树，并递归输出为嵌套 JSON 和缩进文本树。
 
+**在线访问**：https://wangxy1990.github.io/china-region-tree/ （每周二 04:00 北京时间由 GitHub Actions 自动抓取民政部最新代码并重建部署；精简版见 `/cloud.html`）
+
 ## 数据规模
 
 | 层级 | 数量 | 说明 |
