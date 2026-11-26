@@ -1,6 +1,6 @@
 {
   "generatedBy": "RegionTree.java",
-  "generatedAt": "2026-11-25",
+  "generatedAt": "2026-11-26",
   "source": "民政部《2024年中华人民共和国县以上行政区划代码》",
   "levels": ["province", "city", "area"],
   "total": 3213,
@@ -233,7 +233,7 @@
       ]}
     ]},
     {"code": "140000", "name": "山西省", "level": "province", "pop": 34240100, "popYear": 2026, "children": [
-      {"code": "140100", "name": "太原市", "level": "city", "plate": "晋A", "children": [
+      {"code": "140100", "name": "太原市", "level": "city", "plate": "晋A", "pop": 5304061, "popYear": 2020, "children": [
         {"code": "140105", "name": "小店区", "level": "area"},
         {"code": "140106", "name": "迎泽区", "level": "area"},
         {"code": "140107", "name": "杏花岭区", "level": "area"},
@@ -257,7 +257,7 @@
         {"code": "140225", "name": "浑源县", "level": "area"},
         {"code": "140226", "name": "左云县", "level": "area"}
       ]},
-      {"code": "140300", "name": "阳泉市", "level": "city", "plate": "晋C", "children": [
+      {"code": "140300", "name": "阳泉市", "level": "city", "plate": "晋C", "pop": 1318505, "popYear": 2020, "children": [
         {"code": "140302", "name": "城区", "level": "area"},
         {"code": "140303", "name": "矿区", "level": "area"},
         {"code": "140311", "name": "郊区", "level": "area"},
