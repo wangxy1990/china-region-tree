@@ -112,6 +112,11 @@
   .medal.m1{background:linear-gradient(180deg,#f6c445,#dc9c05)}
   .medal.m2{background:linear-gradient(180deg,#ccd4df,#98a3b3)}
   .medal.m3{background:linear-gradient(180deg,#d59d67,#b0733a)}
+  /* 居民收入数值 */
+  .inc{font-size:11.5px;color:#39557d;background:#f4f8fd;border-radius:6px;padding:0 6px;line-height:17px;
+    white-space:nowrap;flex:none;box-shadow:inset 0 0 0 1px #e6eff9}
+  .inc.rural{color:#3c6a4d;background:#f4faf6;box-shadow:inset 0 0 0 1px #e3f1e8}
+  .inc.sm{font-size:10.5px;padding:0 5px;line-height:16px}
   .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:6px;font-weight:500}
   .tag.province{background:var(--provbg);color:var(--blue)}
   .tag.city{background:var(--citybg);color:var(--teal)}
@@ -152,7 +157,7 @@
   <div class="card" id="tree"></div>
 </main>
 
-<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧的灰色小标签是常住人口（悬停可见数据年份），区县名右侧同样有更小的灰色标签；暖色标签（`GDP`）是地区生产总值，单位为亿元／万亿元；顶部「人口覆盖」「区县人口」「GDP 覆盖」「收入 TOP3」分别是三类数据的覆盖数量 · 金色／银色／铜色小徽章表示该区县在本市范围内「城 = 城镇居民人均可支配收入」「农 = 农村居民人均可支配收入」排名第 1／2／3，悬停可见具体收入与年份（排名只在站点有数据的区县之间比较）· 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
+<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧的灰色小标签是常住人口（悬停可见数据年份），区县名右侧同样有更小的灰色标签；暖色标签（`GDP`）是地区生产总值，单位为亿元／万亿元；顶部「人口覆盖」「区县人口」「GDP 覆盖」「收入覆盖」「收入 TOP3」分别是各类数据的覆盖数量 · 浅蓝色／浅绿色标签「城镇 9.20 万」「农村 5.16 万」是城镇居民与农村居民人均可支配收入（万元/人，悬停可见精确元值与年份）· 金色／银色／铜色小徽章表示该区县在本市范围内「城 = 城镇居民人均可支配收入」「农 = 农村居民人均可支配收入」排名第 1／2／3，悬停可见具体收入与年份（排名只在站点有数据的区县之间比较）· 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
 
 <script>
 const DATA = __DATA__;
@@ -187,6 +192,7 @@ document.getElementById('pills').innerHTML =
    <span class="pill"><i></i>人口覆盖 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'city').length}</b> 个市</span>
    <span class="pill"><i></i>区县人口 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'area').length}</b> 个</span>
    <span class="pill"><i></i>GDP 覆盖 <b>${[...byCode.values()].filter(n => n.gdp).length}</b> 处</span>
+   <span class="pill"><i></i>收入覆盖 <b>${[...byCode.values()].filter(n => n.urban || n.rural).length}</b> 处</span>
    <span class="pill"><i></i>收入 TOP3 <b>${[...byCode.values()].filter(n => n.urbanRank || n.ruralRank).length}</b> 处</span>`;
 document.getElementById('footTotal').textContent = total;
 
@@ -225,6 +231,21 @@ function gdpHtml(node) {
   return ` <span class="gdp${sm}" title="${esc(tip)}">GDP ${txt}</span>`;
 }
 
+function incHtml(node) {
+  const sm = node.level === 'area' ? ' sm' : '';
+  const fmt = (v) => (v / 10000).toFixed(2) + ' 万';
+  const parts = [];
+  if (node.urban) {
+    const tip = `${node.urbanYear ? node.urbanYear + ' 年 ' : ''}城镇居民人均可支配收入 ${Math.round(node.urban)} 元/人`;
+    parts.push(`<span class="inc${sm}" title="${esc(tip)}">城镇 ${fmt(node.urban)}</span>`);
+  }
+  if (node.rural) {
+    const tip = `${node.ruralYear ? node.ruralYear + ' 年 ' : ''}农村居民人均可支配收入 ${Math.round(node.rural)} 元/人`;
+    parts.push(`<span class="inc rural${sm}" title="${esc(tip)}">农村 ${fmt(node.rural)}</span>`);
+  }
+  return parts.length ? ' ' + parts.join(' ') : '';
+}
+
 function rankHtml(node) {
   const parts = [];
   const add = (kind, rank, val, year) => {
@@ -246,7 +267,7 @@ function build(node) {
   el.innerHTML =
     `<div class="row">
        <span class="tg">${kids.length ? '▶' : ''}</span>
-       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}${popHtml(node)}${gdpHtml(node)}${rankHtml(node)}
+       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}${popHtml(node)}${gdpHtml(node)}${incHtml(node)}${rankHtml(node)}
        <span class="tag ${node.level}">${LEVEL_CN[node.level] || node.level}</span>
        ${kids.length ? `<span class="cnt">${kids.length}</span>` : ''}
        <span class="code">${node.code}</span>
@@ -301,8 +322,8 @@ function select(node) {
     `<span class="code">${node.code} · ${LEVEL_CN[node.level] || node.level}</span>` +
     (node.pop ? `<span class="code">${node.popYear ? node.popYear + ' 年 ' : ''}常住 ${(node.pop / 10000) >= 100 ? Math.round(node.pop / 10000) + ' 万' : (node.pop / 10000).toFixed(2) + ' 万'}人</span>` : '') +
     (node.gdp ? `<span class="code">${node.gdpYear ? node.gdpYear + ' 年 ' : ''}GDP ${node.gdp >= 10000 ? (node.gdp / 10000).toFixed(2) + ' 万亿' : node.gdp >= 100 ? Math.round(node.gdp) + ' 亿' : node.gdp.toFixed(2) + ' 亿'}元</span>` : '') +
-    (node.urban ? `<span class="code">${node.urbanYear ? node.urbanYear + ' 年 ' : ''}城镇收入 ${Math.round(node.urban)} 元</span>` : '') +
-    (node.rural ? `<span class="code">${node.ruralYear ? node.ruralYear + ' 年 ' : ''}农村收入 ${Math.round(node.rural)} 元</span>` : '') +
+    (node.urban ? `<span class="code">${node.urbanYear ? node.urbanYear + ' 年 ' : ''}城镇收入 ${(node.urban / 10000).toFixed(2)} 万元</span>` : '') +
+    (node.rural ? `<span class="code">${node.ruralYear ? node.ruralYear + ' 年 ' : ''}农村收入 ${(node.rural / 10000).toFixed(2)} 万元</span>` : '') +
     `<span class="copy">复制路径</span>`;
   crumb.querySelector('.copy').onclick = () => {
     const plate = node.plate ? node.plate + (node.plateAlt ? '/' + node.plateAlt : '') : '';
