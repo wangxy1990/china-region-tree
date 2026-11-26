@@ -13,7 +13,7 @@
 | area 区县级 | 2846 | 市辖区、县级市、县、自治县、旗等 |
 | 合计 | 3213 | 最大深度 3 |
 
-人口数据覆盖 333 个地级节点、33 个省级节点与 2357 个区县节点（区县合计 2846），详见「常住人口」一节。
+人口数据覆盖 333 个地级节点、33 个省级节点与 2357 个区县节点（区县合计 2846）；GDP 覆盖 31 个省级、298 个地级与 2216 个区县节点，详见「常住人口」「地区生产总值」两节。
 
 数据源为**民政部《2024年中华人民共和国县以上行政区划代码》**（`mca.gov.cn`，2025 年发布的最新年度代码表），已包含 2024 年 11 月新公布的三沙市西沙区（460302）、南沙区（460303）等变更。
 
@@ -28,11 +28,13 @@ china-region-tree/
 ├── data/HK-MO-TW.json              # 港澳台区县原始数据
 ├── data/plates.csv                 # 车牌发牌代号：code,name,plate,alt（357 条）
 ├── data/population.csv             # 常住人口：code,name,pop,pop_year,source（2723 条：33 省 + 333 市 + 2357 区县）
+├── data/gdp.csv                    # 地区生产总值（亿元）：code,name,gdp,gdp_year,source（2545 条）
 ├── data/data-version.json          # 当前数据版本（年份、来源 URL、生成时间）
 ├── tools/fetch_mca.py              # 抓取并解析民政部代码页面 → CSV
 ├── tools/flatten_pca.py            # 统计用区划代码嵌套 JSON → 扁平 CSV
 ├── tools/build_plates.py           # 各省字母表 → 车牌映射 CSV（含旧地名别名、前缀兜底）
-├── tools/build_population.py       # 抓取各市常住人口（红黑人口库 + 公报兜底）→ CSV
+├── tools/build_population.py       # 抓取常住人口（省/市/区县，红黑人口库 + 公报兜底）→ CSV
+├── tools/build_gdp.py              # 抓取各地 GDP（与人口共用页面缓存）→ CSV
 ├── tools/build_html.py             # 把 JSON 内联进模板，生成单文件浏览页面
 ├── tools/build_cloud.py            # 生成压缩内联的云托管版页面
 ├── tools/update.py                 # 探测最新年份 → 抓取 → 重建 CSV / JSON / 页面
@@ -83,6 +85,24 @@ python tools\build_population.py --refresh  # 忽略缓存全量重抓
 ```
 
 Java 侧 `loadPopulation` + `attachPopulation` 递归回填，JSON 输出 `pop`（人）与 `popYear`；`--pop` 可指定其它人口文件，文件缺失时自动跳过。页面按「≥100 万取整、其余保留两位」渲染成「964 万人 / 3.26 万人」。
+
+## 地区生产总值（GDP）
+
+暖色标签是各地 GDP（单位亿元／万亿元），标签前带 `GDP` 字样、悬停可见数据年份：省级如「广东省 `GDP 15.20 万亿`」，市级如「南京市 `GDP 1.94 万亿`」，区县如「虎丘区 `GDP 1977 亿`」。
+
+数据由 `tools/build_gdp.py` 抓取到 `data/gdp.csv`（字段 `code,name,gdp,gdp_year,source`，单位亿元）：
+
+```powershell
+python tools\build_gdp.py            # 抓取（与人口共用 data\_cache_hhk，命中缓存不重复请求）
+python tools\build_gdp.py --offline  # 只用缓存快速重建
+```
+
+- 解析同一批页面（省页 / 市页 / 区县页）头部「XXXX年GDP数据」卡片，绝大多数为 2025 年数据，个别区县为 2023—2024 年，年份写在 `gdp_year`；
+- 建议在 `build_population.py` 之后运行，两者共用页面缓存，二次运行几乎不产生网络请求；
+- 覆盖 31 省 / 298 市 / 2216 区县；山东、河南等站点缺页的地区没有 GDP 标签；
+- Java 侧 `loadGdp` + `attachGdp` 递归回填，JSON 输出 `gdp`（亿元，两位小数）与 `gdpYear`，`--gdp` 可指定其它文件，缺失时自动跳过。
+
+数据为第三方按各地统计公报汇总，个别区县口径或年份可能滞后，仅供浏览参考。
 
 ## 运行
 
@@ -142,7 +162,7 @@ private static Node buildTree(Region record, Map<String, List<Region>> childrenO
     {
       "code": "320000", "name": "江苏省", "level": "province",
       "children": [
-        { "code": "320100", "name": "南京市", "level": "city", "plate": "苏A", "pop": 9638500, "popYear": 2026,
+        { "code": "320100", "name": "南京市", "level": "city", "plate": "苏A", "pop": 9638500, "popYear": 2026, "gdp": 19428.80, "gdpYear": 2025,
           "children": [
             { "code": "320115", "name": "江宁区", "level": "area" }
           ]

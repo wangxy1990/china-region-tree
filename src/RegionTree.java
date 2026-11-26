@@ -65,6 +65,8 @@ public class RegionTree {
         String plateAlt;   // 增补号段，如 苏E 城市的 苏U
         Long pop;          // 常住人口（人），来自 data/population.csv
         Integer popYear;   // 人口数据所属年份
+        Double gdp;        // 地区生产总值（亿元），来自 data/gdp.csv
+        Integer gdpYear;   // GDP 数据所属年份
         final List<Node> children = new ArrayList<>();
         Node parent;
 
@@ -86,6 +88,7 @@ public class RegionTree {
         String csvPath = "data/regions.csv";
         String platesPath = "data/plates.csv";
         String popPath = "data/population.csv";
+        String gdpPath = "data/gdp.csv";
         String jsonOut = "out/china-region-tree.json";
         String lookupKey = null;
         boolean printAll = false;
@@ -95,6 +98,7 @@ public class RegionTree {
                 case "--csv" -> csvPath = args[++i];
                 case "--plates" -> platesPath = args[++i];
                 case "--pop" -> popPath = args[++i];
+                case "--gdp" -> gdpPath = args[++i];
                 case "--json" -> jsonOut = args[++i];
                 case "--lookup" -> lookupKey = args[++i];
                 case "--tree", "--all" -> printAll = true;
@@ -104,6 +108,7 @@ public class RegionTree {
                               --csv <path>      扁平数据文件，默认 data/regions.csv
                               --plates <path>   车牌映射，默认 data/plates.csv（不存在则跳过）
                               --pop <path>      常住人口，默认 data/population.csv（不存在则跳过）
+                              --gdp <path>      地区生产总值（亿元），默认 data/gdp.csv（不存在则跳过）
                               --json <path>     输出的嵌套 JSON，默认 out/china-region-tree.json
                               --tree            打印完整树（不加则只打印第一个省）
                               --lookup <key>    按行政区划编码或名称查询全路径
@@ -144,6 +149,12 @@ public class RegionTree {
         Map<String, Object[]> pops = loadPopulation(Paths.get(popPath));
         for (Node root : forest) {
             attachPopulation(root, pops);
+        }
+
+        // 3.7 挂 GDP（可选，来自 data/gdp.csv）
+        Map<String, Object[]> gdps = loadGdp(Paths.get(gdpPath));
+        for (Node root : forest) {
+            attachGdp(root, gdps);
         }
 
         // 4. 统计
@@ -261,7 +272,10 @@ public class RegionTree {
                 + (node.plateAlt == null ? "" : "/" + node.plateAlt) + "]";
         String pop = node.pop == null ? "" : " 常住 " + formatPop(node.pop)
                 + (node.popYear == null ? "" : "(" + node.popYear + ")");
-        System.out.printf("%s%s%s%s%s (%s, %s)%n", prefix, connector, node.name, plate, pop, node.code, node.level.key);
+        String gdp = node.gdp == null ? "" : " GDP " + formatGdp(node.gdp)
+                + (node.gdpYear == null ? "" : "(" + node.gdpYear + ")");
+        System.out.printf("%s%s%s%s%s%s (%s, %s)%n", prefix, connector, node.name, plate, pop, gdp,
+                node.code, node.level.key);
         String childPrefix = depth == 1 ? "" : prefix + (isTail ? "   " : "│  ");
         for (int i = 0; i < node.children.size(); i++) {
             printTree(node.children.get(i), childPrefix, i == node.children.size() - 1, depth + 1);
@@ -283,6 +297,12 @@ public class RegionTree {
             sb.append(", \"pop\": ").append(node.pop);
             if (node.popYear != null) {
                 sb.append(", \"popYear\": ").append(node.popYear);
+            }
+        }
+        if (node.gdp != null) {
+            sb.append(", \"gdp\": ").append(String.format(java.util.Locale.ROOT, "%.2f", node.gdp));
+            if (node.gdpYear != null) {
+                sb.append(", \"gdpYear\": ").append(node.gdpYear);
             }
         }
         if (node.children.isEmpty()) {
@@ -382,6 +402,58 @@ public class RegionTree {
         }
         double wan = pop / 10000.0;
         return wan >= 100 ? String.format("%.0f 万", wan) : String.format("%.2f 万", wan);
+    }
+
+    /** 读取 GDP 表 code,name,gdp,gdp_year,source（单位亿元，文件不存在时返回空表）。 */
+    private static Map<String, Object[]> loadGdp(Path path) throws IOException {
+        Map<String, Object[]> map = new LinkedHashMap<>();
+        if (!Files.exists(path)) {
+            return map;
+        }
+        for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+            if (line.isBlank() || line.startsWith("code,")) {
+                continue;
+            }
+            List<String> f = splitCsv(line);
+            if (f.size() < 3) {
+                continue;
+            }
+            String code = f.get(0).replace("\uFEFF", "").trim();
+            String gdp = f.get(2).trim();
+            String year = f.size() > 3 ? f.get(3).trim() : "";
+            if (code.isEmpty() || gdp.isEmpty()) {
+                continue;
+            }
+            try {
+                map.put(code, new Object[]{Double.parseDouble(gdp),
+                        year.isEmpty() ? null : Integer.valueOf(year)});
+            } catch (NumberFormatException ignored) {
+                // 跳过异常行
+            }
+        }
+        return map;
+    }
+
+    /** 递归把 GDP 挂到对应节点。 */
+    @SuppressWarnings("unchecked")
+    private static void attachGdp(Node node, Map<String, Object[]> gdps) {
+        Object[] g = gdps.get(node.code);
+        if (g != null) {
+            node.gdp = (Double) g[0];
+            node.gdpYear = (Integer) g[1];
+        }
+        for (Node child : node.children) {
+            attachGdp(child, gdps);
+        }
+    }
+
+    /** GDP 格式化为「x.xx 万亿 / x 亿」。 */
+    private static String formatGdp(Double gdp) {
+        if (gdp == null) {
+            return "";
+        }
+        return gdp >= 10000 ? String.format("%.2f 万亿", gdp / 10000)
+                : gdp >= 100 ? String.format("%.0f 亿", gdp) : String.format("%.2f 亿", gdp);
     }
 
     private static String escape(String s) {

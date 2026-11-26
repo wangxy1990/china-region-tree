@@ -102,6 +102,10 @@
   .pop{font-size:11.5px;color:#6b7686;background:#f7f9fc;border-radius:6px;padding:0 6px;line-height:17px;
     white-space:nowrap;flex:none;box-shadow:inset 0 0 0 1px #eef1f7}
   .pop.sm{font-size:10.5px;color:#8a94a4;padding:0 5px;line-height:16px}
+  /* GDP */
+  .gdp{font-size:11.5px;color:#8a5a12;background:#fdf7ea;border-radius:6px;padding:0 6px;line-height:17px;
+    white-space:nowrap;flex:none;box-shadow:inset 0 0 0 1px #f3e6c9}
+  .gdp.sm{font-size:10.5px;padding:0 5px;line-height:16px}
   .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:6px;font-weight:500}
   .tag.province{background:var(--provbg);color:var(--blue)}
   .tag.city{background:var(--citybg);color:var(--teal)}
@@ -142,7 +146,7 @@
   <div class="card" id="tree"></div>
 </main>
 
-<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧的灰色小标签是常住人口（悬停可见数据年份），区县名右侧同样有更小的灰色标签；顶部「人口覆盖」统计到市一级，「区县人口」统计到区县一级 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
+<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧的灰色小标签是常住人口（悬停可见数据年份），区县名右侧同样有更小的灰色标签；暖色标签（`GDP`）是地区生产总值，单位为亿元／万亿元；顶部「人口覆盖」「区县人口」「GDP 覆盖」分别是三类数据的覆盖数量 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
 
 <script>
 const DATA = __DATA__;
@@ -175,7 +179,8 @@ document.getElementById('pills').innerHTML =
    <span class="pill"><i></i>合计 <b>${total}</b></span>
    <span class="pill"><i></i>车牌覆盖 <b>${[...byCode.values()].filter(n => n.plate && n.level !== 'province').length}</b> 处</span>
    <span class="pill"><i></i>人口覆盖 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'city').length}</b> 个市</span>
-   <span class="pill"><i></i>区县人口 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'area').length}</b> 个</span>`;
+   <span class="pill"><i></i>区县人口 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'area').length}</b> 个</span>
+   <span class="pill"><i></i>GDP 覆盖 <b>${[...byCode.values()].filter(n => n.gdp).length}</b> 处</span>`;
 document.getElementById('footTotal').textContent = total;
 
 /* ---------- 渲染 ---------- */
@@ -203,6 +208,16 @@ function popHtml(node) {
   return ` <span class="pop${sm}" title="${esc(tip)}">${txt}人</span>`;
 }
 
+function gdpHtml(node) {
+  if (!node.gdp) return '';
+  const g = node.gdp;
+  const txt = g >= 10000 ? (g / 10000).toFixed(2) + ' 万亿'
+    : g >= 100 ? Math.round(g) + ' 亿' : g.toFixed(2) + ' 亿';
+  const tip = (node.gdpYear ? node.gdpYear + ' 年 ' : '') + 'GDP（亿元）';
+  const sm = node.level === 'area' ? ' sm' : '';
+  return ` <span class="gdp${sm}" title="${esc(tip)}">GDP ${txt}</span>`;
+}
+
 function build(node) {
   const el = document.createElement('div');
   const kids = node.children || [];
@@ -210,7 +225,7 @@ function build(node) {
   el.innerHTML =
     `<div class="row">
        <span class="tg">${kids.length ? '▶' : ''}</span>
-       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}${popHtml(node)}
+       <span class="nm">${esc(node.name)}</span>${plateHtml(node)}${popHtml(node)}${gdpHtml(node)}
        <span class="tag ${node.level}">${LEVEL_CN[node.level] || node.level}</span>
        ${kids.length ? `<span class="cnt">${kids.length}</span>` : ''}
        <span class="code">${node.code}</span>
@@ -264,6 +279,7 @@ function select(node) {
     plateHtml(node) +
     `<span class="code">${node.code} · ${LEVEL_CN[node.level] || node.level}</span>` +
     (node.pop ? `<span class="code">${node.popYear ? node.popYear + ' 年 ' : ''}常住 ${(node.pop / 10000) >= 100 ? Math.round(node.pop / 10000) + ' 万' : (node.pop / 10000).toFixed(2) + ' 万'}人</span>` : '') +
+    (node.gdp ? `<span class="code">${node.gdpYear ? node.gdpYear + ' 年 ' : ''}GDP ${node.gdp >= 10000 ? (node.gdp / 10000).toFixed(2) + ' 万亿' : node.gdp >= 100 ? Math.round(node.gdp) + ' 亿' : node.gdp.toFixed(2) + ' 亿'}元</span>` : '') +
     `<span class="copy">复制路径</span>`;
   crumb.querySelector('.copy').onclick = () => {
     const plate = node.plate ? node.plate + (node.plateAlt ? '/' + node.plateAlt : '') : '';
@@ -297,7 +313,7 @@ q.addEventListener('input', () => {
   hits.sort((a, b) => a._depth - b._depth || a.code.localeCompare(b.code));
   results.innerHTML = hits.length
     ? hits.slice(0, 30).map(n =>
-      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}${plateHtml(n)}${popHtml(n)}
+      `<div class="res" data-code="${n.code}">${mark(n.name, kw)}${plateHtml(n)}${popHtml(n)}${gdpHtml(n)}
          <span class="tag ${n.level}">${LEVEL_CN[n.level] || n.level}</span>
          <span class="code" style="margin-left:6px">${n.code}</span>
          <span class="p">${esc(n._path)}</span></div>`).join('')
