@@ -41,6 +41,7 @@ china-region-tree/
 ├── tools/build_cloud.py            # 生成压缩内联的云托管版页面
 ├── tools/update.py                 # 探测最新年份 → 抓取 → 重建 CSV / JSON / 页面
 ├── web/template.html               # 页面模板（样式 + 交互）
+├── web/bg.jpg                      # 页面底图（1280×800 地形底纹，构建时内联为 base64）
 ├── out/index.html                  # 交付：可双击打开的结构树浏览页（离线、单文件）
 ├── out/cloud.html                  # 云端精简版（deflate-raw + base64 内联，约 52 KB）
 ├── out/china-region-tree.json      # 输出：嵌套结构树（约 230 KB）
@@ -56,6 +57,8 @@ python tools\build_html.py web\template.html out\china-region-tree.json out\inde
 ```
 
 页面能力：省市县三级可逐级展开／收起（点名称或箭头都行）、按名称、编码或**车牌代号**搜索并自动定位高亮、点击节点显示「省 › 市 › 区县」面包屑并可复制、一键展开全部／收起全部，顶部显示各层级数量统计。
+
+视觉上是一套「浅色地形底纹 + 玻璃拟态」的版式：整页铺一张淡蓝灰的地形等高线底图（`web/bg.jpg`，构建时以 base64 内联进页面，离线打开也有底纹，不依赖网络），顶部工具栏与面包屑使用毛玻璃与渐变发丝线，树卡片为圆角悬浮面板，行悬停有柔和高亮与描边。
 
 ## 车牌代号
 

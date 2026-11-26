@@ -63,6 +63,11 @@ def main(json_path, out_path):
     with open(TEMPLATE, encoding="utf-8") as f:
         html = f.read()
 
+    bg = os.path.join(ROOT, "web", "bg.jpg")
+    if os.path.exists(bg) and "__BG__" in html:
+        with open(bg, "rb") as f:
+            html = html.replace("__BG__", "data:image/jpeg;base64," + base64.b64encode(f.read()).decode("ascii"))
+
     html = html.replace("<script>\nconst DATA = __DATA__;",
                         f'<script>window.__PAYLOAD__ = "{packed}";</script>\n<script type="module">\n'
                         "const RAW = await (async () => {\n"

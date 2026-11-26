@@ -4,9 +4,19 @@
 
 用法: python tools/build_html.py web/template.html out/china-region-tree.json out/index.html
 """
+import base64
 import json
 import os
 import sys
+
+
+def bg_data_uri(template):
+    """把 web/bg.jpg 内联成 data URI，替换模板里的 __BG__（保证单文件离线可用）。"""
+    bg = os.path.join(os.path.dirname(os.path.abspath(template)), "bg.jpg")
+    if not os.path.exists(bg):
+        return ""
+    with open(bg, "rb") as f:
+        return "data:image/jpeg;base64," + base64.b64encode(f.read()).decode("ascii")
 
 
 def main(template, data_path, out_path):
@@ -20,6 +30,9 @@ def main(template, data_path, out_path):
     payload = payload.replace("</", "<\\/")
 
     html = html.replace("__DATA__", payload)
+    uri = bg_data_uri(template)
+    if uri:
+        html = html.replace("__BG__", uri)
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
