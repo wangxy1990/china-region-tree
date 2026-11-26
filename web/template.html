@@ -101,6 +101,7 @@
   /* 常住人口 */
   .pop{font-size:11.5px;color:#6b7686;background:#f7f9fc;border-radius:6px;padding:0 6px;line-height:17px;
     white-space:nowrap;flex:none;box-shadow:inset 0 0 0 1px #eef1f7}
+  .pop.sm{font-size:10.5px;color:#8a94a4;padding:0 5px;line-height:16px}
   .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:6px;font-weight:500}
   .tag.province{background:var(--provbg);color:var(--blue)}
   .tag.city{background:var(--citybg);color:var(--teal)}
@@ -141,7 +142,7 @@
   <div class="card" id="tree"></div>
 </main>
 
-<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧为常住人口（悬停标签可见数据年份，未标注年份者按最新统计公报，个别为七普口径）· 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
+<footer class="wrap">数据来源：<span id="srcFull"></span> · 共 <span id="footTotal"></span> 条记录 · 车牌代号为各省发牌机关代号（如 苏A、粤B），浅色印章为增补号段 · 市名右侧的灰色小标签是常住人口（悬停可见数据年份），区县名右侧同样有更小的灰色标签；顶部「人口覆盖」统计到市一级，「区县人口」统计到区县一级 · 页面由 RegionTree.java 输出的 JSON 生成，离线双击即可打开。</footer>
 
 <script>
 const DATA = __DATA__;
@@ -173,7 +174,8 @@ document.getElementById('pills').innerHTML =
    <span class="pill area"><i></i>区县 <b>${counts.area}</b></span>
    <span class="pill"><i></i>合计 <b>${total}</b></span>
    <span class="pill"><i></i>车牌覆盖 <b>${[...byCode.values()].filter(n => n.plate && n.level !== 'province').length}</b> 处</span>
-   <span class="pill"><i></i>人口覆盖 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'city').length}</b> 个市</span>`;
+   <span class="pill"><i></i>人口覆盖 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'city').length}</b> 个市</span>
+   <span class="pill"><i></i>区县人口 <b>${[...byCode.values()].filter(n => n.pop && n.level === 'area').length}</b> 个</span>`;
 document.getElementById('footTotal').textContent = total;
 
 /* ---------- 渲染 ---------- */
@@ -197,7 +199,8 @@ function popHtml(node) {
   const txt = wan >= 100 ? Math.round(wan) + ' 万' : wan.toFixed(2) + ' 万';
   const year = node.popYear;
   const tip = (year ? year + ' ' : '') + '常住人口';
-  return ` <span class="pop" title="${esc(tip)}">${txt}人</span>`;
+  const sm = node.level === 'area' ? ' sm' : '';
+  return ` <span class="pop${sm}" title="${esc(tip)}">${txt}人</span>`;
 }
 
 function build(node) {

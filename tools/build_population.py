@@ -46,6 +46,9 @@ PROV_PAGES = {
     "香港特别行政区": 1105, "澳门特别行政区": 1125,
 }
 
+# 直辖市：区县直接挂在省级节点下
+MUNICIPAL = {"北京市", "天津市", "上海市", "重庆市"}
+
 POP_RE = re.compile(
     r"<span>\s*([0-9]+(?:\.[0-9]+)?)(万)?\s*</span>\s*(?:</a>)?[^<]{0,40}<b>\s*(\d{4})年[初末]?常住人口",
     re.S,
@@ -83,6 +86,7 @@ OPTION_RE = re.compile(r'<option value="([^"]+)"[^>]*>\s*-\s*([^<]+?)\s*</option
 H1_RE = re.compile(r"<h1[^>]*>(.*?)</h1>", re.S)
 TAG_RE = re.compile(r'href="https://www.hongheiku.com/tag/([^"]+)"')
 CITY_LINK_RE = re.compile(r'href="(https://www.hongheiku.com/shijirenkou/\d+\.html)"')
+AREA_LINK_RE = re.compile(r'href="(https://www.hongheiku.com/xianjirank/\d+\.html)"')
 
 
 def fetch(url, offline=False, refresh=False):
@@ -219,16 +223,50 @@ class Matcher:
                 return r["name"]
         return ""
 
+    def resolve_child(self, name, parent_name):
+        """按「父节点名称 + 子节点名称」定位区县编码。
 
-def collect_city_urls(offline, refresh):
+        来源页的区县名可能带城市前缀（如「南京鼓楼区」），需要先剥掉再匹配。
+        """
+        if not name or not parent_name:
+            return None
+        cands = []
+        if parent_name:
+            for r in self.regions:
+                if r["name"] == parent_name:
+                    for c in self.regions:
+                        if c["parent_code"] == r["code"]:
+                            cands.append(c)
+        if not cands:
+            return None
+        pnorm = norm(parent_name)
+        n = norm(name)
+        # 去掉可能的城市名前缀
+        if pnorm and n.startswith(pnorm) and len(n) - len(pnorm) >= 2:
+            n = n[len(pnorm):]
+        for c in cands:
+            if norm(c["name"]) == n:
+                return c["code"]
+        for c in cands:
+            cn = norm(c["name"])
+            if cn.startswith(n) or n.startswith(cn):
+                return c["code"]
+        return None
+
+
+def collect_city_urls(offline, refresh, only=None):
     urls = set()
     for prov, pid in PROV_PAGES.items():
         if not pid:
+            continue
+        if only and prov not in only:
             continue
         html = fetch(f"https://www.hongheiku.com/sjrk/{pid}.html", offline, refresh)
         for u, n in OPTION_RE.findall(html):
             if "/shijirenkou/" in u:
                 urls.add(u)
+    if only:
+        return urls
     # 列表页补充
     BASE = "https://www.hongheiku.com/category/shijirenkou"
     for page in range(1, 16):
@@ -248,19 +286,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--offline", action="store_true")
     ap.add_argument("--refresh", action="store_true")
+    ap.add_argument("--only", help="只处理指定省份，逗号分隔，如 江苏省,南京市")
     args = ap.parse_args()
+    only = set(x.strip() for x in args.only.split(",")) if args.only else None
 
     regions = load_regions()
     m = Matcher(regions)
 
     print("收集市级页面链接…")
-    city_urls = collect_city_urls(args.offline, args.refresh)
+    city_urls = collect_city_urls(args.offline, args.refresh, only)
     print(f"共 {len(city_urls)} 个候选页面")
 
     # 省级节点自身人口
     rows = []
     for prov, pid in PROV_PAGES.items():
         if not pid:
+            continue
+        if only and prov not in only:
             continue
         html = fetch(f"https://www.hongheiku.com/sjrk/{pid}.html", args.offline, args.refresh)
         pop, year = parse_pop(html)
@@ -279,6 +321,7 @@ def main():
     print("抓取市级页面…")
     ok = 0
     miss = []
+    area_targets = []   # (区县页 URL, 所属父节点名称, 是否直辖市)
     with ThreadPoolExecutor(max_workers=8) as ex:
         for i, (u, name, prov, pop, year) in enumerate(ex.map(work, sorted(city_urls)), 1):
             if name and pop:
@@ -290,8 +333,25 @@ def main():
                     miss.append(f"{name}(未匹配)")
             elif name:
                 miss.append(f"{name}(无人口字段)")
+            if name:
+                html = fetch(u, args.offline, args.refresh)
+                for au, an in OPTION_RE.findall(html):
+                    if "/xianjirank/" in au:
+                        area_targets.append((au, name))
             if i % 40 == 0:
                 print(f"  ...{i}/{len(city_urls)}  成功 {ok}")
+
+    # 直辖市：下级区县挂在省级页上
+    for prov in MUNICIPAL:
+        if only and prov not in only:
+            continue
+        pid = PROV_PAGES.get(prov)
+        if not pid:
+            continue
+        html = fetch(f"https://www.hongheiku.com/sjrk/{pid}.html", args.offline, args.refresh)
+        for au, an in OPTION_RE.findall(html):
+            if "/xianjirank/" in au:
+                area_targets.append((au, prov))
 
     # 公报兜底（站点缺页的省份）
     for prov, url in GAZETTE_PAGES.items():
@@ -306,6 +366,33 @@ def main():
             code = m.resolve(name, prov)
             if code:
                 rows.append((code, name, val, 2020, "https://m.henan.gov.cn/2021/05-21/2149620.html"))
+
+    # 区县一级
+    area_targets = sorted(set(area_targets))
+    print(f"抓取区县页面…（{len(area_targets)} 个）")
+    ok_area = 0
+
+    def work_area(t):
+        u, parent = t
+        html = fetch(u, args.offline, args.refresh)
+        name = parse_name(html)
+        pop, year = parse_pop(html)
+        return u, parent, name, pop, year
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for i, (u, parent, name, pop, year) in enumerate(ex.map(work_area, area_targets), 1):
+            if name and pop:
+                code = m.resolve_child(name, parent)
+                if code:
+                    rows.append((code, name, pop, year, u))
+                    ok_area += 1
+                else:
+                    miss.append(f"{parent}/{name}(未匹配)")
+            elif name:
+                miss.append(f"{parent}/{name}(无人口)")
+            if i % 200 == 0:
+                print(f"  ...{i}/{len(area_targets)}  成功 {ok_area}")
+    print(f"  区县成功 {ok_area}/{len(area_targets)}")
 
     # 去重（同一 code 取最早出现，市优先于省）
     seen = {}
