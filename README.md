@@ -13,7 +13,7 @@
 | area 区县级 | 2846 | 市辖区、县级市、县、自治县、旗等 |
 | 合计 | 3213 | 最大深度 3 |
 
-人口数据覆盖 333 个地级节点、33 个省级节点与 2357 个区县节点（区县合计 2846）；GDP 覆盖 31 个省级、298 个地级与 2216 个区县节点，详见「常住人口」「地区生产总值」两节。
+人口数据覆盖 333 个地级节点、33 个省级节点与 2357 个区县节点（区县合计 2846）；GDP 覆盖 31 个省级、298 个地级与 2216 个区县节点；居民收入覆盖 31 个省级、288 个地级与 1950 个区县节点，详见「常住人口」「地区生产总值」「居民人均可支配收入」三节。
 
 数据源为**民政部《2024年中华人民共和国县以上行政区划代码》**（`mca.gov.cn`，2025 年发布的最新年度代码表），已包含 2024 年 11 月新公布的三沙市西沙区（460302）、南沙区（460303）等变更。
 
@@ -29,12 +29,14 @@ china-region-tree/
 ├── data/plates.csv                 # 车牌发牌代号：code,name,plate,alt（357 条）
 ├── data/population.csv             # 常住人口：code,name,pop,pop_year,source（2723 条：33 省 + 333 市 + 2357 区县）
 ├── data/gdp.csv                    # 地区生产总值（亿元）：code,name,gdp,gdp_year,source（2545 条）
+├── data/income.csv                 # 居民收入（元/人）+ 全市前三名次：code,name,urban,urban_year,rural,rural_year,urban_rank,rural_rank,source（2269 条）
 ├── data/data-version.json          # 当前数据版本（年份、来源 URL、生成时间）
 ├── tools/fetch_mca.py              # 抓取并解析民政部代码页面 → CSV
 ├── tools/flatten_pca.py            # 统计用区划代码嵌套 JSON → 扁平 CSV
 ├── tools/build_plates.py           # 各省字母表 → 车牌映射 CSV（含旧地名别名、前缀兜底）
 ├── tools/build_population.py       # 抓取常住人口（省/市/区县，红黑人口库 + 公报兜底）→ CSV
 ├── tools/build_gdp.py              # 抓取各地 GDP（与人口共用页面缓存）→ CSV
+├── tools/build_income.py           # 抓取城镇/农村居民人均可支配收入，并按市排出前三名 → CSV
 ├── tools/build_html.py             # 把 JSON 内联进模板，生成单文件浏览页面
 ├── tools/build_cloud.py            # 生成压缩内联的云托管版页面
 ├── tools/update.py                 # 探测最新年份 → 抓取 → 重建 CSV / JSON / 页面
@@ -104,6 +106,28 @@ python tools\build_gdp.py --offline  # 只用缓存快速重建
 
 数据为第三方按各地统计公报汇总，个别区县口径或年份可能滞后，仅供浏览参考。
 
+## 居民人均可支配收入（全市前三名徽章）
+
+区县名右侧的金色 / 银色 / 铜色小徽章是该区县在**本市范围内**的排名：
+
+- `城1` / `城2` / `城3`：城镇居民人均可支配收入第 1 / 2 / 3 名；
+- `农1` / `农2` / `农3`：农村居民人均可支配收入第 1 / 2 / 3 名；
+- 悬停徽章可见「XXXX 年 城镇居民人均可支配收入 92048 元 · 全市第 1」；
+- 排名只在站点有数据的区县之间比较，缺页的区县不参与（例如苏州常熟市、张家港市无收入数据）；值相同的区县并列同名次；
+- 选中面包屑会额外显示该节点的「城镇收入 / 农村收入」绝对值。
+
+数据由 `tools/build_income.py` 抓取到 `data/income.csv`（字段 `code,name,urban,urban_year,rural,rural_year,urban_rank,rural_rank,source`，收入单位元/人）：
+
+```powershell
+python tools\build_income.py            # 抓取 + 自动按市排名
+python tools\build_income.py --offline  # 只用缓存快速重建
+```
+
+- 解析同一批页面头部「XXXX年城镇居民可支配收入 / 农村居民可支配收入」卡片，多数为 2025 年；
+- 排名在脚本内完成：按区县的父节点分组降序排序，只保留前 3 名写入 `urban_rank` / `rural_rank`；
+- 覆盖 31 省 / 288 市 / 1950 区县（城镇收入 2250 处、农村收入 2124 处），其中城镇 TOP3 816 个、农村 TOP3 815 个（纯城区没有农村收入，故农村榜略少）；
+- Java 侧 `loadIncome` + `attachIncome` 递归回填，JSON 输出 `urban/urbanYear/rural/ruralYear/urbanRank/ruralRank`，`--income` 可指定其它文件，缺失时自动跳过。
+
 ## 运行
 
 ```powershell
@@ -162,9 +186,13 @@ private static Node buildTree(Region record, Map<String, List<Region>> childrenO
     {
       "code": "320000", "name": "江苏省", "level": "province",
       "children": [
-        { "code": "320100", "name": "南京市", "level": "city", "plate": "苏A", "pop": 9638500, "popYear": 2026, "gdp": 19428.80, "gdpYear": 2025,
+        { "code": "320500", "name": "苏州市", "level": "city", "plate": "苏E", "plateAlt": "苏U",
+          "pop": 13050000, "popYear": 2026, "gdp": 27700.00, "gdpYear": 2025,
+          "urban": 90125.00, "urbanYear": 2025, "rural": 51303.00, "ruralYear": 2025,
           "children": [
-            { "code": "320115", "name": "江宁区", "level": "area" }
+            { "code": "320506", "name": "吴中区", "level": "area",
+              "urban": 92048.33, "urbanYear": 2025, "rural": 51599.97, "ruralYear": 2025,
+              "urbanRank": 1, "ruralRank": 2 }
           ]
         }
       ]

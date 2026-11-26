@@ -67,6 +67,12 @@ public class RegionTree {
         Integer popYear;   // 人口数据所属年份
         Double gdp;        // 地区生产总值（亿元），来自 data/gdp.csv
         Integer gdpYear;   // GDP 数据所属年份
+        Double urban;      // 城镇居民人均可支配收入（元）
+        Integer urbanYear;
+        Double rural;      // 农村居民人均可支配收入（元）
+        Integer ruralYear;
+        Integer urbanRank; // 在该市范围内的城镇收入排名（1~3，其余为 null）
+        Integer ruralRank; // 在该市范围内的农村收入排名（1~3）
         final List<Node> children = new ArrayList<>();
         Node parent;
 
@@ -89,6 +95,7 @@ public class RegionTree {
         String platesPath = "data/plates.csv";
         String popPath = "data/population.csv";
         String gdpPath = "data/gdp.csv";
+        String incomePath = "data/income.csv";
         String jsonOut = "out/china-region-tree.json";
         String lookupKey = null;
         boolean printAll = false;
@@ -99,6 +106,7 @@ public class RegionTree {
                 case "--plates" -> platesPath = args[++i];
                 case "--pop" -> popPath = args[++i];
                 case "--gdp" -> gdpPath = args[++i];
+                case "--income" -> incomePath = args[++i];
                 case "--json" -> jsonOut = args[++i];
                 case "--lookup" -> lookupKey = args[++i];
                 case "--tree", "--all" -> printAll = true;
@@ -109,6 +117,7 @@ public class RegionTree {
                               --plates <path>   车牌映射，默认 data/plates.csv（不存在则跳过）
                               --pop <path>      常住人口，默认 data/population.csv（不存在则跳过）
                               --gdp <path>      地区生产总值（亿元），默认 data/gdp.csv（不存在则跳过）
+                              --income <path>   居民人均可支配收入，默认 data/income.csv（不存在则跳过）
                               --json <path>     输出的嵌套 JSON，默认 out/china-region-tree.json
                               --tree            打印完整树（不加则只打印第一个省）
                               --lookup <key>    按行政区划编码或名称查询全路径
@@ -155,6 +164,12 @@ public class RegionTree {
         Map<String, Object[]> gdps = loadGdp(Paths.get(gdpPath));
         for (Node root : forest) {
             attachGdp(root, gdps);
+        }
+
+        // 3.8 挂居民收入与市级排名（可选，来自 data/income.csv）
+        Map<String, Object[]> incomes = loadIncome(Paths.get(incomePath));
+        for (Node root : forest) {
+            attachIncome(root, incomes);
         }
 
         // 4. 统计
@@ -305,6 +320,24 @@ public class RegionTree {
                 sb.append(", \"gdpYear\": ").append(node.gdpYear);
             }
         }
+        if (node.urban != null) {
+            sb.append(", \"urban\": ").append(String.format(java.util.Locale.ROOT, "%.2f", node.urban));
+            if (node.urbanYear != null) {
+                sb.append(", \"urbanYear\": ").append(node.urbanYear);
+            }
+        }
+        if (node.rural != null) {
+            sb.append(", \"rural\": ").append(String.format(java.util.Locale.ROOT, "%.2f", node.rural));
+            if (node.ruralYear != null) {
+                sb.append(", \"ruralYear\": ").append(node.ruralYear);
+            }
+        }
+        if (node.urbanRank != null) {
+            sb.append(", \"urbanRank\": ").append(node.urbanRank);
+        }
+        if (node.ruralRank != null) {
+            sb.append(", \"ruralRank\": ").append(node.ruralRank);
+        }
         if (node.children.isEmpty()) {
             sb.append("}");
         } else {
@@ -454,6 +487,57 @@ public class RegionTree {
         }
         return gdp >= 10000 ? String.format("%.2f 万亿", gdp / 10000)
                 : gdp >= 100 ? String.format("%.0f 亿", gdp) : String.format("%.2f 亿", gdp);
+    }
+
+    /** 读取居民收入表 code,name,urban,urban_year,rural,rural_year,urban_rank,rural_rank,source。 */
+    private static Map<String, Object[]> loadIncome(Path path) throws IOException {
+        Map<String, Object[]> map = new LinkedHashMap<>();
+        if (!Files.exists(path)) {
+            return map;
+        }
+        for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+            if (line.isBlank() || line.startsWith("code,")) {
+                continue;
+            }
+            List<String> f = splitCsv(line);
+            if (f.size() < 3) {
+                continue;
+            }
+            String code = f.get(0).replace("\uFEFF", "").trim();
+            if (code.isEmpty()) {
+                continue;
+            }
+            try {
+                map.put(code, new Object[]{
+                        f.get(2).isEmpty() ? null : Double.parseDouble(f.get(2)),
+                        f.size() > 3 && !f.get(3).isEmpty() ? Integer.valueOf(f.get(3)) : null,
+                        f.size() > 4 && !f.get(4).isEmpty() ? Double.parseDouble(f.get(4)) : null,
+                        f.size() > 5 && !f.get(5).isEmpty() ? Integer.valueOf(f.get(5)) : null,
+                        f.size() > 6 && !f.get(6).isEmpty() ? Integer.valueOf(f.get(6)) : null,
+                        f.size() > 7 && !f.get(7).isEmpty() ? Integer.valueOf(f.get(7)) : null,
+                });
+            } catch (NumberFormatException ignored) {
+                // 跳过异常行
+            }
+        }
+        return map;
+    }
+
+    /** 递归把居民收入与排名挂到节点。 */
+    @SuppressWarnings("unchecked")
+    private static void attachIncome(Node node, Map<String, Object[]> incomes) {
+        Object[] v = incomes.get(node.code);
+        if (v != null) {
+            node.urban = (Double) v[0];
+            node.urbanYear = (Integer) v[1];
+            node.rural = (Double) v[2];
+            node.ruralYear = (Integer) v[3];
+            node.urbanRank = (Integer) v[4];
+            node.ruralRank = (Integer) v[5];
+        }
+        for (Node child : node.children) {
+            attachIncome(child, incomes);
+        }
     }
 
     private static String escape(String s) {

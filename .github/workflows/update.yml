@@ -40,7 +40,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit_message: "chore: 自动更新行政区划数据 [skip ci]"
-          file_pattern: "data/regions.csv data/population.csv data/gdp.csv data/data-version.json out/china-region-tree.json out/index.html out/cloud.html"
+          file_pattern: "data/regions.csv data/population.csv data/gdp.csv data/income.csv data/data-version.json out/china-region-tree.json out/index.html out/cloud.html"
 
       - name: 组装站点
         run: |

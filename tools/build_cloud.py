@@ -22,8 +22,10 @@ DECODER = """const DATA = await (async () => {
 
 
 def compact(node):
-    """[code, name, plate, pop, popYear, gdp, gdpYear, children?]
-    plate 形如 "苏E" 或 "苏E/苏U"，无车牌为空串；pop 为常住人口（人），gdp 为亿元，无数据为 0。"""
+    """[code, name, plate, pop, popYear, gdp, gdpYear, urban, urbanYear, rural, ruralYear,
+       urbanRank, ruralRank, children?]
+    plate 形如 "苏E" 或 "苏E/苏U"，无车牌为空串；pop 为常住人口（人），gdp 为亿元，
+    urban/rural 为元/人，*Rank 为该市范围内 1~3 名（其余 0），无数据为 0。"""
     plate = node.get("plate") or ""
     if node.get("plateAlt"):
         plate += "/" + node["plateAlt"]
@@ -36,6 +38,12 @@ def compact(node):
         node.get("popYear") or 0,
         round(node.get("gdp") or 0, 2),
         node.get("gdpYear") or 0,
+        round(node.get("urban") or 0, 2),
+        node.get("urbanYear") or 0,
+        round(node.get("rural") or 0, 2),
+        node.get("ruralYear") or 0,
+        node.get("urbanRank") or 0,
+        node.get("ruralRank") or 0,
     ]
     if kids:
         item.append([compact(c) for c in kids])
@@ -78,7 +86,11 @@ def main(json_path, out_path):
                         "  }\n"
                         "  if (n[3]) { node.pop = n[3]; if (n[4]) node.popYear = n[4]; }\n"
                         "  if (n[5]) { node.gdp = n[5]; if (n[6]) node.gdpYear = n[6]; }\n"
-                        "  const kids = Array.isArray(n[7]) ? n[7] : null;\n"
+                        "  if (n[7]) { node.urban = n[7]; if (n[8]) node.urbanYear = n[8]; }\n"
+                        "  if (n[9]) { node.rural = n[9]; if (n[10]) node.ruralYear = n[10]; }\n"
+                        "  if (n[11]) node.urbanRank = n[11];\n"
+                        "  if (n[12]) node.ruralRank = n[12];\n"
+                        "  const kids = Array.isArray(n[13]) ? n[13] : null;\n"
                         "  if (kids) node.children = kids.map(c => revive(c, depth + 1));\n"
                         "  return node;\n"
                         "}")
